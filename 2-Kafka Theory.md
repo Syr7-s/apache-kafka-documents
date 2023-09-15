@@ -116,4 +116,90 @@
 
   ![img-32](images/img-32.png)
 
-* That means that each broker has all the metadata information of your Kafka cluster. And this is how clients connect to a Kafka cluster. All right, that's it. So in this lecture, we've seen brokers in depth. I hope you liked it, and I will see you in the next lecture.
+* That means that each broker has all the metadata information of your Kafka cluster. And this is how clients connect to a Kafka cluster.
+
+#### Topic Replication
+
+* We're going to learn about the Kafka topic, replication factor and what it implies for your consumers and your producers. So topics in Kafka. When you're doing stuff on your own machine, they can have a replication factor of one, but usually when you are in production, that means you're having a real Kafka cluster, you need to set a replication factor greater than 1, usually between 2 and 3 and most commonly at 3. So that way if a broker is down, that means the Kafka server is stopped for maintenance or for a technical issue, then another Kafka broker still has a copy of the data to serve and receive. 
+
+* So let's take an example to understand this better. We have topic A, it has 2 partitions and a replication factor of 2. So we have 3 Kafka brokers and we're going to place topic 0, partition 0 of topic A onto broker 101, partition 1 of topic A onto broker 102. So this is the initial. And then because we have a replication factor of two, then we're going to have a copy of partition 0 onto broker 102 with a replication mechanism and a copy of partition 1 onto broker 103 with again a replication mechanism. So as you can see here, we have four obviously units of data because we have 2 partitions and replication factor of 2 and we can see that brokers are replicating data from other brokers. 
+
+  ![img-33](images/img-33.png)
+
+* So what does that mean? We go back to this. What if we lose broker 102? Okay. Well, as we can see, we have broker 101 and 103 still up and they can still serve the data. So partition 0 and partition 1 are still available within our cluster and this is why we have a replication factor. 
+
+* So in case of replication factor of 2, to make it very simple, you can lose one broker and be fine. So next we have replicas, okay? And so therefore we have a leader for a partition. And at any time only one broker can be a leader for a given partition. And the rule is that producers can only send data to the broker that is the leader of a partition. So if we go back to this diagram we had from before, I added a little star on the leader of each partition and we can see that broker 101 is the leader of partition 0 and broker 102 is the leader of partition 1. But broker 102 is a replica of partition 0 and broker 103 is a replica of partition 1. So the other brokers replicate the data and if the data is replicated fast enough, then each replica is going to be called an ISR. An ISR means in sync replica as opposed to out of sync replica. So if the data is replicated well then they are synchronized in terms of the data replication.
+
+  ![img-34](images/img-34.png)
+
+* Okay, So this is very important because there is a very important aspect of leaders. So by default, and this is a default behavior with leaders, your producers are going to only write into the leader broker for a partition. 
+
+  ![img-35](images/img-35.png)
+
+* So if the producer knows it wants to send data into partition 0, as we've seen from the previous mechanism and we have a leader and ISR, then the producer knows that it should only send the data into the broker that is the leader of that partition and that is a very important Kafka feature. And the Kafka consumers, they're going to read by default only from the leader of a partition. So that means that the consumer will only request data from the leader broker 101. That means that broker 102 in the first example is a replica just for the sake of replicating data and in case the broker one and one goes down, then it can become the new leader and serve the data for the producer and the consumer. 
+
+  ![img-36](images/img-36.png)
+
+* That is the default behavior. But as we'll notice in Kafka and Kafka has evolved a lot since I've been teaching it over five years of teaching Kafka. And it's evolve a lot. And there's been new features added over time. And because actually many companies use older versions of Kafka and sometimes way older versions of Kafka, I'm going to specify what has changed across time for newer Kafka versions. And even if I know you're only use the latest Kafka version, for example, 3.0 whatever is happened before or after, I still have to tell people what is the new features and when they did appear. Okay. So there is a new feature called the Kafka consumer replica fetching, which happened as part of Kafka 2.4, which allows consumer to read from the closest replica. So we have the broker 101, which is the leader of partition 0, receiving data from the producer. 
+
+  ![img-37](images/img-37.png)
+
+* It's going to replicate data into the ISR partition 0 of broker 102 and then it's possible for our consumer to read from the replica itself. Okay. Why? Well, this may help to improve latency because maybe the consumer is really close to broker 102. And also maybe it's going to help decrease network costs if using the Cloud, because if things are in the same data center, then you have little to no cost. We'll see this in details when we get to the programming section. But I just wanted to introduce that concept to you that it is not possible. So that's it for this lecture. We've learned about brokers and replication factors and now leaders and what it means for producers and consumers. 
+
+#### Producer Acknowledgment and Topic Durability
+
+* So we have the producer sending data into our brokers. Okay. Now we know that brokers have the topic partitions. And so the producers can choose to receive acknowledgments of data writes. That means to have the confirmation from the Kafka broker that the write did successfully happen. So we have three settings and we have acks equals zero, which means that the producer is not even going to wait or ask for an acknowledgment. That means that we have a possible data loss because if a broker goes down, we won't know about it. Then we have acks equals one, which means that the producer is going to wait for the leader of a partition. And this is very important that we understand, not whether leader is. 
+
+  ![img-38](images/img-38.png)
+
+* So it's going to wait for the leader broker to acknowledge and that means we have limited data loss. And I will go over this in details later on in this course, but just introduction. And then what we have acks equals all in which we require the leader as well as all replicas in sync replicas to acknowledge the writes, which is going to provide you a guarantee of no data loss under certain circumstances. Okay. So that means also that we can now understand the concept of Kafka topic durability. So if you have a Kafka topic with a replication factor of three, then the topic can withstand two brokers loss. So in this example, I didn't take three brokers, I took two brokers, okay, three brokers and a replication factor of two. And we saw that when we lost broker 102, we still had the topic data available to us because it was on other brokers. 
+
+  ![img-39](images/img-39.png)
+
+* Okay. So as a general rule, if you choose a replication factor of N, N being a number, then you can permanently lose up to N minus one broker and still have a copy of your data somewhere in your cluster. 
+
+#### ZooKeeper
+
+* So Zookeeper has been how Kafka was able to function all the way up until today, but it's slowly disappearing and is going to be replaced. So you may hear a Zookeeper a lot in the Kafka community today
+
+* So first, let's look at Kafka with Zookeeper. So Zookeeper are managing Kafka brokers, and Zookeeper is a software. And Zookeeper is going to keep a list of your Kafka brokers. 
+
+* Zookeeper is also going to be very helpful for Kafka because whenever we have a broker going down, we need to perform a leader election to choose new leader for partitions, and Zookeeper is going to help with this process. Also, Zookeeper is going to send notifications to Kafka brokers in case of changes. For example, when a new topic is created, when the Kafka broker goes down or comes up, deletion of topics and so on. So Zookeeper has a lot of the Kafka metadata and Kafka all the way up until version 2. whatever 2.2.8, it cannot workout Zookeeper.
+
+* So Zookeeper has been since the beginning of Kafka, a companion to Kafka brokers, and you cannot launch Kafka without launching Zookeeper. But now starting with Kafka 3.x, you can have Kafka work on its own without Zookeeper. It's called the Kafka Raft mechanism instead. So it's Kraft or Kafka Raft. And if you want to read more about it, just go on Google and type keep KIP, 500 and then in version Kafka four dot whatever, you will not have Zookeeper anymore. So right now the community is transitioning to making Kafka work without Zookeeper correctly and then at some point migrate and move without a to a zookeeper lest Kafka. So that means that Kafka with Zookeeper is necessary now. And so we still need to learn about Zookeeper because you are going to see it in production a lot. So Zookeeper by design is going to operate with an odd version of servers. So either you have one Zookeeper or three Zookeeper or five Zookeeper or seven Zookeeper. Never more than seven usually. And Zookeeper also has a concept of leaders and the rest are followers. So one for writes and the rest for reads. And something you may read on the Internet, but it's old information and I still see it. So it's important for you to know Kafka. Kafka consumers in the old versions of Kafka used to store consumer assets on Zookeeper, but now, as you know, they store consumer offsets on the internal Kafka topics named consumer offsets. So Zookeeper does not hold any consumer data. Okay. Starting with Kafka version 0.10. And I know this looks old, but it's still super important for me to say it because you have no idea how many people still get that wrong. So if we look at Zookeeper, we may have an example here with three Zookeeper servers. 
+
+  ![img-40](images/img-40.png)
+
+* The second one is the leader, and then the brokers are connected to Zookeeper and that's how they get their metadata. I'm not giving you too much information about Zookeeper because you don't need to move that much. All right. So the question is, should you use Zookeeper? If you are managing Kafka brokers, the answer is yes. Until Kafka, 4.0 is out and ready then you should not use Kafka without Zookeeper in production. Okay. But I'm going to still show you in the hands on how to start Kafka without Zookeeper for you to have a play. But remember, it is not production ready yet. And then for your Kafka client. 
+
+  ![img-41](images/img-41.png)
+
+* So Kafka clients, over time, they have been migrated to leverage the brokers as the only connection endpoint instead of Zookeeper. But before you use to connect your producer to Zookeeper, you use to connect your consumer to Zookeeper. You used to connect your administration client to Zookeeper and so on. And so you may see the zookeeper option. And on the online literature, you may see Zookeeper being written out elsewhere. 
+
+* Okay. But if you're doing the most recent version of this course, then you should not use Zookeeper anymore. Okay. All the Kafka clients and CLI tools have been migrated to only leverage Kafka brokers as a connection endpoints. Okay. So even consumers that shouldn't connect to Kafka brokers because, to Zookeepers, Excuse me. And then since Kafka 2.2, the Kafka Topics command also as well references Kafka Brokers and not Zookeeper. And this is very important because the community did an effort to migrate all the comments before from Zookeeper to Kafka. Because when we are going to have Kafka without Zookeeper, then the clients will not have any issues because they don't expect Zookeeper to be here. 
+
+  ![img-42](images/img-42.png)
+
+* So also, the reason why Zookeeper is going away is that because Zookeeper is less secure than Kafka. And so that means that you should protect Zookeeper if you use it to only accept connections from Kafka brokers, but not from Kafka clients. So all in all, as a summary, if you want to be a great and I'm teaching you to be great, a great modern day Kafka developer never, ever use Zookeeper as a configuration in your Kafka clients. If you do it, I will look at you and be mad. Okay. And if you write a program as well, do not connect to Zookeeper, only connect to Kafka.
+
+#### Kafka Raft : Removing ZooKeeper
+
+* we're going to learn about the Kafka KRaft mode. So a little bit of history. In 2020, the Kafka project started to work on removing the Zookeeper dependency from it. It's called KIP-500. 
+
+* Why? Well, when Zookeeper was being used, Kafka clusters were having some scaling issues if you have over 100,000 partitions, which is a lot of partitions. But by removing Zookeeper, now Apache Kafka can scale to millions of partitions and becomes easier to maintain and set up. It also improves stability. It makes it easy to monitor, support and administer Kafka. You have a single security model for the whole system because now you only have to deal with Kafka security and not Zookeeper security. Also, there's just a single process to start with Apache Kafka. It gives you as well, faster controller shutdown and recovery time. So Kafka KRraft is implemented as of Kafka 3.x version, so 3.0 and so on. But it has been production ready only since Kafka 3.3.1. So KIP 833. 
+
+  ![img-43](images/img-43.png)
+
+* Also, Kafka 4.0 will be released only with KRaft support. There's going to be no Zookeeper support in the KRaft mechanism. So with the KRaft architecture, if we look at the Zookeeper, we have a Zookeeper quorum with a leader to handle our Kafka brokers. But then with a quorum controller, there is only Kafka brokers and one of them is the quorum leader. So we can see the simplified architecture. Also, KRaft gives us performance improvement. 
+
+  ![img-44](images/img-44.png)
+
+* So this comes from a blog, and as you can see, the control shut down time as well as the recovery time after uncontrolled shutdown is substantially better. So overall, KRaft is a great improvement and this is something we cover in this course into how to launch a cluster in KRaft mode. 
+
+#### Theory RoundUP
+
+* So we've seen that a Kafka cluster can be made of multiple brokers. For example, I have nine brokers in my cluster. And we've seen within the cluster, we've seen the concept of topics, partitions, replication, we've seen the partition leader and inserting replicas, and we've seen the Kafka internal offsets topic. Now for producers, we've seen that they take data from a source system and whatever you want, and then they send data into Apache Kafka. We've seen the concept that round robin that means that the data is distributed across all partitions in a topic. Key based ordering. That means that when we specify a key, then the same key is going to end up in the same partition. And then acks strategy. So we had an introduction to acks equals zero, one and all to discuss how much acknowledgment we want when we write to a Kafka cluster. 
+
+  ![img-45](images/img-45.png)
+
+* Okay. Next, we've seen the consumers, so we've seen how consumers operate in the consumer group, how they store offsets into a consumer offsets topic. We've seen different consumption modes such as at least once, at most once or exactly once. And then finally, we've seen that a Kafka cluster is managed right now by Zookeeper, where there is leader follower concept in Zookeeper, as well as broker management, metadata management. And we've also seen how the fact that the community is transitioning from using Zookeeper to using just a Kafka cluster in Kraft mode.
